@@ -3,8 +3,14 @@ packages:
 
 patchedDependencies:
   body-parser@2: lib/modules/body-parser.patch
+  compression: lib/modules/compression.patch
   log4js: lib/modules/log4js.patch
   streamroller: lib/modules/streamroller.patch
 
 strictDepBuilds: false
 dangerouslyAllowAllBuilds: true
+
+# pnpm 11 的供应链闸门会拦住 lockfile 里刚发布不久的包（如 sass / @types/lodash），
+# 导致 Bot 每次启动时自动跑的依赖同步必然失败（进而触发 node_modules 重命名重建）。
+# 项目本身由 lockfile 锁定版本，这里放开时间闸门。
+minimumReleaseAge: 0

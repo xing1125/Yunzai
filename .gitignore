@@ -36,3 +36,7 @@
 /claymore
 /polearm
 /sword
+# 工作台会话产物（不进仓库）
+/.workbuddy/
+/_dev/
+/outputs/

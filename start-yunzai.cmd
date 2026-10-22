@@ -1,36 +1,75 @@
 @echo off
-rem ============================================================================
-rem  Start Yunzai bot ONLY (win/node v25, hidden background) + live log window
-rem  - Single instance guard: skip if :2536 already listening.
-rem  - The live log window scrolls bot_stdout.log in real time (tail -f style).
-rem  - Closing the log window does NOT stop the bot.
-rem ============================================================================
-setlocal
-set "YZ=D:\trss-yunzai"
-set "NODE=D:\trss-yunzai\win\node\node.exe"
-
-echo Checking :2536 ...
-powershell -NoProfile -Command "if(Get-NetTCPConnection -LocalPort 2536 -State Listen -ErrorAction SilentlyContinue){exit 0}else{exit 1}" >nul 2>&1
-if %errorlevel%==0 goto already
-
-echo [%date% %time%] starting Yunzai >> "%YZ%\bot_stdout.log"
-echo [START] launching Yunzai with node v25 - hidden background ...
-powershell -NoProfile -Command "Start-Process -FilePath '%NODE%' -ArgumentList 'app.js' -WorkingDirectory '%YZ%' -WindowStyle Hidden -RedirectStandardOutput '%YZ%\bot_stdout.log' -RedirectStandardError '%YZ%\bot_stderr.log'"
-
-echo [LIVE ] opening live log window ...
-start "Yunzai Live Log" powershell -NoProfile -Command "Get-Content -Path '%YZ%\bot_stdout.log' -Wait -Tail 30"
+setlocal enabledelayedexpansion
+title 荧 · Bot 启动器
+cd /d D:\trss-yunzai
 
 echo.
-echo [OK] Yunzai is running in background - the live log window shows real-time output.
-echo     Closing the log window does NOT stop the bot.
+echo   ===== 荧 · Bot 启动器 =====
+echo   目录: %CD%
 echo.
-pause
+
+where pm2 >nul 2>&1
+if errorlevel 1 (
+  echo   [错误] 没找到 pm2，请先执行: npm i -g pm2
+  echo.
+  pause
+  exit /b 1
+)
+
+where curl >nul 2>&1
+if errorlevel 1 (
+  set "_hascurl=0"
+) else (
+  set "_hascurl=1"
+)
+
+if "!_hascurl!"=="1" (
+  curl -f -s -o nul -m 2 http://127.0.0.1:2536/guoba/ >nul 2>&1
+  if not errorlevel 1 (
+    echo   [状态] 已在运行，直接打开后台
+    goto open
+  )
+)
+
+echo   [状态] 未运行，正在后台拉起...
+call "%~dp0startup.cmd"
+if errorlevel 1 (
+  echo.
+  echo   [错误] startup.cmd 返回失败，检查 pm2 是否安装正常
+  echo.
+  pause
+  exit /b 1
+)
+
+if "!_hascurl!"=="0" (
+  echo   [等待] 固定等 30 秒
+  ping -n 31 127.0.0.1 >nul
+  goto open
+)
+
+echo   [等待] 端口就绪中（首次启动约 30 秒，下面的点每 2 秒一个）
+set /a _n=0
+:wait
+curl -f -s -o nul -m 2 http://127.0.0.1:2536/guoba/ >nul 2>&1
+if not errorlevel 1 goto open
+set /a _n+=1
+if !_n! geq 40 goto fail
+<nul set /p "=."
+ping -n 3 127.0.0.1 >nul
+goto wait
+
+:open
+echo.
+echo   [完成] 后台地址: http://127.0.0.1:2536/guoba/
+start "" http://127.0.0.1:2536/guoba/
+ping -n 4 127.0.0.1 >nul
 exit /b 0
 
-:already
-echo [SKIP] Yunzai already running on :2536 - opening live log window ...
-start "Yunzai Live Log" powershell -NoProfile -Command "Get-Content -Path '%YZ%\bot_stdout.log' -Wait -Tail 30"
-echo [OK] Live log window opened. Closing it does NOT stop the bot.
+:fail
+echo.
+echo   [失败] 80 秒内端口没起来，看日志定位:
+echo          call pm2 logs TRSS-Yunzai --lines 60
+echo          或看 %CD%\bot_stderr.log
 echo.
 pause
-exit /b 0
+exit /b 1

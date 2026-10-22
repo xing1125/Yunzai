@@ -1,7 +1,43 @@
+# PM2 常驻配置 —— 让 Bot（以及挂在它进程里的三个后台）不会因为「窗口被关 / 崩溃」而失联
+#
+# 用法：
+#   cd /d/trss-yunzai
+#   pm2 start config/pm2.yaml && pm2 save
+#   pm2 logs TRSS-Yunzai          # 看日志
+#   pm2 restart TRSS-Yunzai       # 重载（等价于原来的关窗口再开）
+#
+# 注意：后台不是独立服务，2536（微信适配器 + 荧后台）、6099（群管仪表盘）、
+# 6177（鸣潮签到看板）全部由这一个进程监听，所以「保住这个进程」= 「后台随时能进」。
 apps:
   - name: TRSS-Yunzai
     script: ./app.js
-    max_memory_restart: 512M
+    cwd: ./
+    exec_mode: fork
+    instances: 1
+    # 解释器必须钉死内置 node（v25）：原生模块 skia-canvas / better-sqlite3
+    # 是按 win/node 的 ABI 构建的；不写死会走 PATH 里第一个 node（可能是 v22 或其他版本）
+    interpreter: D:/trss-yunzai/win/node/node.exe
+
+    # 崩溃 / 被误杀后自动拉起，间隔指数退避（1s → 2s → 4s …）
+    autorestart: true
     exp_backoff_restart_delay: 1000
+    # 起来不到 20 秒就又挂了，算启动失败，继续退避重试而不是死循环刷屏
+    min_uptime: 20s
+    # 正常重启（pm2 restart）前的优雅退出等待
+    kill_timeout: 8000
+
+    # 内存兜底：实测常驻 RSS 约 440M、Private 约 800M，
+    # 原来写的 512M 会让它在正常水位就反复自杀重启 —— 这里放宽到 1.5G。
+    max_memory_restart: 1500M
+
+    # 日志重定向到项目根目录：后台「日志」页的「实时控制台」虚拟文件
+    # （bot_stdout.log / bot_stderr.log）就是读这两个文件，别改名，否则那个功能会空。
+    merge_logs: true
+    out_file: ./bot_stdout.log
+    error_file: ./bot_stderr.log
+    # 不追加时间戳前缀，保持 LogService 的逐行解析格式
+    time: false
+
     env:
+      # TRSS 靠这个变量识别 pm2 模式（控制台 readline 行为会跟着变）
       app_type: pm2
