@@ -1,0 +1,4 @@
+memberWatchIntervalSec: 200
+memberWatchBackoffTicks: 17
+memberWatchGroupTimeoutMs: 110000
+memberWatchBackoffAfter: 3

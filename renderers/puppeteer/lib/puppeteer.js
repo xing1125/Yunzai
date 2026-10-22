@@ -184,6 +184,9 @@ export default class Puppeteer extends Renderer {
 
     try {
       const page = await this.browser.newPage()
+      // 默认 viewport 必须足够大，否则宽布局模板内容被截断
+      const vp = data.viewport || { width: 1280, height: 1080, deviceScaleFactor: 1 }
+      await page.setViewport(vp)
       const pageGotoParams = lodash.extend(this.pageGotoParams, data.pageGotoParams || {})
       await page.goto(`file://${_path}${lodash.trim(savePath, ".")}`, pageGotoParams)
       const body = (await page.$("#container")) || (await page.$("body"))
@@ -208,6 +211,20 @@ export default class Puppeteer extends Renderer {
       if (data.imgType === "png") delete randData.quality
 
       if (!data.multiPage) {
+        // 单张长图（如攻略墙）可能非常高。其最终像素高 = 内容高(CSS) × deviceScaleFactor。
+        // 一旦超过 Chromium 截图单维度 device 像素上限（约 16384px），底部会被静默截断
+        // → 表现即「显示不全」。这里按实测内容高把 DSF 降到不超上限，保证整张长图一次截全。
+        // 延续上一轮已加的 setViewport 逻辑（deviceScaleFactor 默认 2 易被长图击穿上限）。
+        if (boundingBox && boundingBox.height > 0) {
+          const needW = Math.max(Math.ceil(boundingBox.width), vp.width || 0)
+          const needH = Math.ceil(boundingBox.height)
+          let dsf = vp.deviceScaleFactor || 1
+          const MAX_DEVICE = 16000 // Chromium 截图单维度 device 像素经验上限，超出易截断
+          if (needH * dsf > MAX_DEVICE) {
+            dsf = Math.max(1, Math.floor(MAX_DEVICE / needH))
+          }
+          await page.setViewport({ width: needW, height: needH, deviceScaleFactor: dsf })
+        }
         buff = await body.screenshot(randData)
         if (!Buffer.isBuffer(buff)) buff = Buffer.from(buff)
 

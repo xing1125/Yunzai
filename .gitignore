@@ -11,3 +11,28 @@
 /dump.rdb
 /pnpm-lock.yaml
 /*.sh
+
+# 敏感 / 运行时（防泄露到公开 fork）
+.env
+/data
+/temp
+/memory
+/memory_private
+/groupConfig.json
+
+# 运行时 / 大文件 / 备份 / 独立仓库（不进主仓库）
+*.log
+*.bak
+/win/
+/dev/
+/guoba-web-fork/
+/_miao-custom-backup/
+/_plugins_backup/
+/bot-dashboard-prototype/
+/admin-console-prototype/
+/admin-console-spec/
+/bow
+/catalyst
+/claymore
+/polearm
+/sword
